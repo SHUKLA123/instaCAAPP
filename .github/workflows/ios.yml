@@ -1,19 +1,5 @@
 name: ios
 
-# Builds the iOS app on a GitHub-hosted macOS runner.
-#
-# WHAT THIS GIVES YOU, FREE: a simulator build (.app) that runs in the iOS
-# Simulator on any Mac, with no Apple Developer account.
-#
-# WHAT IT CANNOT GIVE YOU: a file that installs on a real iPhone. Apple requires
-# a signed binary to run on hardware, and signing needs a certificate and
-# provisioning profile from a paid Apple Developer Program membership
-# (₹8,900/year). There is no CI trick around this.
-#
-# COST: macOS runners are free on PUBLIC repositories. On a private repo they
-# bill at 10x the Linux rate against your monthly minutes — which is why this is
-# manual-trigger only rather than running on every push.
-
 on:
   workflow_dispatch:
     inputs:
@@ -21,8 +7,6 @@ on:
         description: "Backend URL the build should talk to (e.g. https://instaca-api.onrender.com)"
         required: false
         default: ""
-  push:
-    tags: ["ios-v*"]
 
 jobs:
   simulator:
@@ -44,8 +28,6 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
 
-      # On iOS react-native-config reads .env at build time via its own script
-      # phase, so the file has to exist before xcodebuild runs.
       - name: Write .env
         run: |
           API="${{ github.event.inputs.api_base_url }}"
@@ -65,7 +47,7 @@ jobs:
 
       # Cache key carries "oldarch": turning the New Architecture off changes
       # which pods are generated, and a cache from a new-arch run would quietly
-      # reintroduce Fabric pods this build no longer wants.
+      # reintroduce the Fabric pods this build no longer wants.
       - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
@@ -73,15 +55,11 @@ jobs:
           key: pods-oldarch-${{ hashFiles('ios/Podfile.lock') }}
           restore-keys: pods-oldarch-
 
-      # RCT_NEW_ARCH_ENABLED=0 is the iOS half of the same decision made in
-      # android/gradle.properties. React Native 0.76 turns the New Architecture
-      # ON BY DEFAULT on iOS — the failing build showed -DRCT_NEW_ARCH_ENABLED=1
-      # in every compile line — which drags in Fabric and forces each library's
-      # C++ to match RN's internal Yoga/renderer headers exactly. Off, those
-      # targets are not generated at all.
-      #
-      # This must be set for `pod install`, not just the build: it decides what
-      # CocoaPods generates.
+      # RCT_NEW_ARCH_ENABLED=0 is the iOS half of newArchEnabled=false on
+      # Android. RN 0.76 turns the New Architecture ON BY DEFAULT on iOS — the
+      # failing build showed -DRCT_NEW_ARCH_ENABLED=1 on every compile line —
+      # which is why RNSVGLayoutableShadowNode.cpp was being compiled at all.
+      # It must be set for `pod install`: that is what decides which pods exist.
       - name: pod install
         working-directory: ios
         env:
@@ -92,14 +70,9 @@ jobs:
         run: |
           xcodebuild -version
           pod --version
-          node --version
           echo "--- available schemes ---"
           xcodebuild -workspace ios/InstaCA.xcworkspace -list
 
-      # No -quiet: xcodebuild exits 65 for every kind of failure, so the only
-      # way to know which one happened is to keep the full log. It is written
-      # to a file and the last 200 lines are printed on failure, which is where
-      # the real error always is.
       - name: Build for the simulator
         env:
           RCT_NEW_ARCH_ENABLED: "0"
@@ -117,7 +90,6 @@ jobs:
             2>&1 | tee /tmp/xcodebuild.log \
             || {
               echo "=================== BUILD FAILED ==================="
-              echo "--- lines mentioning 'error:' ---"
               grep -n "error:" /tmp/xcodebuild.log | head -40 || true
               echo "--- last 200 lines ---"
               tail -200 /tmp/xcodebuild.log
@@ -135,33 +107,3 @@ jobs:
           name: InstaCA-ios-simulator
           path: InstaCA-simulator.zip
           retention-days: 30
-
-      - name: How to run it
-        run: |
-          echo "Download InstaCA-ios-simulator, unzip it, then on a Mac:"
-          echo "  xcrun simctl boot 'iPhone 15'"
-          echo "  open -a Simulator"
-          echo "  xcrun simctl install booted InstaCA.app"
-          echo "  xcrun simctl launch booted com.instaca.app"
-
-  # ---------------------------------------------------------------------------
-  # Signed build for a real device. Stays disabled until the four secrets exist,
-  # because without them every run would fail and bury the useful job above.
-  #
-  # To enable: remove the `if: false` line, then add these repository secrets
-  # (Settings -> Secrets and variables -> Actions):
-  #
-  #   IOS_CERTIFICATE_P12      base64 of your Apple distribution .p12
-  #   IOS_CERTIFICATE_PASSWORD password for that .p12
-  #   IOS_PROVISIONING_PROFILE base64 of the .mobileprovision
-  #   IOS_TEAM_ID              your 10-character Apple Team ID
-  #
-  # All four come from a paid Apple Developer Program membership.
-  # ---------------------------------------------------------------------------
-  device:
-    name: signed .ipa (needs an Apple Developer account)
-    if: ${{ false }}
-    runs-on: macos-14
-    timeout-minutes: 60
-    steps:
-      - run: echo "See the comment above this job for how to enable it."
