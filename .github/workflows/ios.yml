@@ -63,17 +63,29 @@ jobs:
           echo "── .env used for this build ──"
           cat .env
 
+      # Cache key carries "oldarch": turning the New Architecture off changes
+      # which pods are generated, and a cache from a new-arch run would quietly
+      # reintroduce Fabric pods this build no longer wants.
       - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
           path: ios/Pods
-          key: pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: pods-
+          key: pods-oldarch-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: pods-oldarch-
 
-      # The first run pulls the Agora SDK, which is large. The cache above keeps
-      # later runs to a couple of minutes.
+      # RCT_NEW_ARCH_ENABLED=0 is the iOS half of the same decision made in
+      # android/gradle.properties. React Native 0.76 turns the New Architecture
+      # ON BY DEFAULT on iOS — the failing build showed -DRCT_NEW_ARCH_ENABLED=1
+      # in every compile line — which drags in Fabric and forces each library's
+      # C++ to match RN's internal Yoga/renderer headers exactly. Off, those
+      # targets are not generated at all.
+      #
+      # This must be set for `pod install`, not just the build: it decides what
+      # CocoaPods generates.
       - name: pod install
         working-directory: ios
+        env:
+          RCT_NEW_ARCH_ENABLED: "0"
         run: pod install --repo-update
 
       - name: Toolchain versions
@@ -89,6 +101,8 @@ jobs:
       # to a file and the last 200 lines are printed on failure, which is where
       # the real error always is.
       - name: Build for the simulator
+        env:
+          RCT_NEW_ARCH_ENABLED: "0"
         run: |
           set -o pipefail
           xcodebuild \
