@@ -1,0 +1,10 @@
+export * from './client';
+export * from './types';
+export {authApi} from './auth';
+export {casApi} from './cas';
+export type {CaSearchParams} from './cas';
+export {walletApi} from './wallet';
+export {consultApi} from './consult';
+export {documentsApi} from './documents';
+export {servicesApi, ordersApi} from './services';
+export {invoicesApi} from './invoices';
