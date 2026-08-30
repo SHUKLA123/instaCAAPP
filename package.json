@@ -33,7 +33,9 @@
     "@babel/core": "^7.25.2",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
-    "babel-plugin-module-resolver": "^5.0.2",
+    "@react-native-community/cli": "15.0.1",
+    "@react-native-community/cli-platform-android": "15.0.1",
+    "@react-native-community/cli-platform-ios": "15.0.1",
     "@react-native/babel-preset": "0.76.5",
     "@react-native/eslint-config": "0.76.5",
     "@react-native/metro-config": "0.76.5",
@@ -41,6 +43,7 @@
     "@types/react": "^18.3.12",
     "@types/react-test-renderer": "^18.3.0",
     "babel-jest": "^29.7.0",
+    "babel-plugin-module-resolver": "^5.0.2",
     "eslint": "^8.19.0",
     "jest": "^29.7.0",
     "prettier": "^3.3.3",
@@ -51,3 +54,4 @@
     "node": ">=18"
   }
 }
+

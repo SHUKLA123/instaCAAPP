@@ -114,6 +114,10 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // Manually included in settings.gradle — autolinking skips this one, so the
+    // dependency has to be declared here too or BuildConfig.* stays empty.
+    implementation project(':react-native-config')
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {
