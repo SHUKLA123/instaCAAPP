@@ -1,0 +1,84 @@
+name: android
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "Backend URL the build should talk to (e.g. https://instaca-api.onrender.com)"
+        required: false
+        default: ""
+  push:
+    tags: ["android-v*"]
+
+jobs:
+  apk:
+    name: debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Write .env
+        run: |
+          API="${{ github.event.inputs.api_base_url }}"
+          if [ -z "$API" ]; then
+            echo "No api_base_url given — the APK will point at an emulator host."
+            cp .env.example .env
+          else
+            WS=$(echo "$API" | sed 's|^https://|wss://|; s|^http://|ws://|')
+            {
+              echo "API_BASE_URL=$API"
+              echo "WS_BASE_URL=$WS"
+              echo "DEFAULT_GST_RATE_PERCENT=18"
+            } > .env
+            echo "Building against $API"
+          fi
+          echo "── .env used for this build ──"
+          cat .env
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Build
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Rename for clarity
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "out/InstaCA-debug-${GITHUB_SHA::7}.apk"
+          ls -lh out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InstaCA-apk
+          path: out/*.apk
+          retention-days: 30
